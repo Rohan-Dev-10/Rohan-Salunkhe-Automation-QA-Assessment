@@ -1,0 +1,264 @@
+{
+  "name": "Conduit Uptime Monitor - Rohan Salunkhe",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "bd952037-cecb-4314-9d5a-aea3a8b4457e",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://demo.realworld.show/",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text",
+              "outputPropertyName": "body"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "6f648822-ddcc-401e-84f1-476c0ddda593",
+      "name": "Check Conduit Homepage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        176,
+        96
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convert the HTTP response into a predictable health-check item.\nconst response = $input.first()?.json ?? {};\nconst statusCode = Number(response.statusCode ?? response.status ?? 0);\nconst body = typeof response.body === 'string' ? response.body : JSON.stringify(response.body ?? '');\nreturn [{ json: { url: 'https://demo.realworld.show/', statusCode, isHealthy: statusCode === 200, checkedAt: new Date().toISOString(), responsePreview: body.slice(0, 250) } }];"
+      },
+      "id": "9f5b47d9-6fed-423c-8d0c-f5680c730a9b",
+      "name": "Read HTTP Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b7d8e5b1-9f14-4f17-9b02-000000000101",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b9ec7bf7-ad7e-4b2c-8a54-d55053a074b5",
+      "name": "IF Status Is Not 200",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        688,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first()?.json ?? {};\nreturn [{ json: { subject: `UPTIME ALERT: Conduit returned HTTP ${result.statusCode}`, message: `The Conduit demo did not return HTTP 200.\\n\\nURL: ${result.url}\\nStatus: ${result.statusCode}\\nChecked at: ${result.checkedAt}\\nResponse preview: ${result.responsePreview || '(empty)'}` } }];"
+      },
+      "id": "2e0da026-e806-4d39-9377-56dfe7ad2394",
+      "name": "Format Non-200 Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first()?.json ?? {};\nconst detail = item.error?.message || item.error || item.message || JSON.stringify(item);\nreturn [{ json: { subject: 'UPTIME ALERT: Conduit request failed', message: `The HTTP request to the Conduit demo failed after retries.\\n\\nURL: https://demo.realworld.show/\\nChecked at: ${new Date().toISOString()}\\nError: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` } }];"
+      },
+      "id": "2cd3fe92-f283-4de4-9c80-800c479be705",
+      "name": "Format Request Failure Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "rohansalunkhe991010@gmail.com",
+        "toEmail": "rohansalunkhe991010@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.message }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "0b731232-49b9-49ae-b155-32a6a9d3fa23",
+      "name": "Send Uptime Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1184,
+        144
+      ],
+      "webhookId": "f09fd09a-d4a8-4c3b-b53d-21b4bab17ffc",
+      "credentials": {
+        "smtp": {
+          "id": "acjAAgDyJoX3qsE8",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first()?.json ?? {};\nreturn [{ json: { status: 'healthy', statusCode: item.statusCode, url: item.url, checkedAt: item.checkedAt, note: 'No alert sent because the HTTP status was 200.' } }];"
+      },
+      "id": "2fc90e2e-8150-4226-bef6-9e93613724cd",
+      "name": "Record Healthy Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        208
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Check Conduit Homepage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Conduit Homepage": {
+      "main": [
+        [
+          {
+            "node": "Read HTTP Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Request Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read HTTP Status": {
+      "main": [
+        [
+          {
+            "node": "IF Status Is Not 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Status Is Not 200": {
+      "main": [
+        [
+          {
+            "node": "Format Non-200 Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record Healthy Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Non-200 Alert": {
+      "main": [
+        [
+          {
+            "node": "Send Uptime Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Request Failure Alert": {
+      "main": [
+        [
+          {
+            "node": "Send Uptime Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": -1,
+    "availableInMCP": false,
+    "redactCallerExecutions": true
+  },
+  "versionId": "05c45d2c-9b2a-49a2-a584-775929f4960e",
+  "meta": {
+    "instanceId": "004e4c1452cf417ada75978155a630bc1858cc385a93fc3f1f03e8051fa8f2f3"
+  },
+  "nodeGroups": [],
+  "id": "iYrfY7l5oKWuIdmh",
+  "tags": []
+}
