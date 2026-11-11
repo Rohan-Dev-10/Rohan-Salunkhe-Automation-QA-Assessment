@@ -1,0 +1,364 @@
+{
+  "name": "Conduit Uptime Monitor - Rohan Salunkhe",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "daily-morning-brief",
+        "options": {}
+      },
+      "id": "dab5f07c-7ad2-463f-b36c-0c6e20943994",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        176
+      ],
+      "webhookId": "b6c8e5b1-9f14-4f17-9b01-000000000101"
+    },
+    {
+      "parameters": {
+        "url": "https://jsonplaceholder.typicode.com/posts",
+        "options": {}
+      },
+      "id": "b7be5f05-1883-42de-a5e3-4b07243f27b0",
+      "name": "Get All Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        176
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Keep the first five valid posts, sorted by post ID.\nconst posts = $input.all().map((item) => item.json);\n\nconst topFive = posts\n  .filter((post) => post && post.id !== undefined && post.userId !== undefined && post.title && post.body)\n  .sort((a, b) => Number(a.id) - Number(b.id))\n  .slice(0, 5);\n\nreturn topFive.map((post) => ({ json: post }));"
+      },
+      "id": "1ba62997-54c2-4908-8865-9b60cbd4a7fc",
+      "name": "Select Top 5 Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://jsonplaceholder.typicode.com/users/{{$json.userId}}",
+        "options": {}
+      },
+      "id": "fd650037-42a9-45f4-b5b1-c2bfe78c23a2",
+      "name": "Get Author Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        704,
+        128
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Join each post to the user returned by the second API call.\nconst posts = $('Select Top 5 Posts').all().map((item) => item.json);\nconst authors = $input.all().map((item) => item.json);\nconst authorById = new Map(authors.map((author) => [Number(author.id), author]));\n\nreturn posts.map((post) => {\n  const author = authorById.get(Number(post.userId)) || null;\n  return {\n    json: {\n      ...post,\n      author: author ? { name: author.name, username: author.username, email: author.email } : null\n    }\n  };\n});"
+      },
+      "id": "c6e11a0e-c054-43b8-a3d1-83f6acd452bc",
+      "name": "Combine Posts and Authors",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b6c8e5b1-9f14-4f17-9b01-000000000201",
+              "leftValue": "={{ $json.title.length }}",
+              "rightValue": 50,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "42da9dc0-c9ca-4721-9ccb-300a3666ad7f",
+      "name": "IF - Title Longer Than 50 Characters",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1184,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const posts = $input.all().map((item) => item.json);\nconst digest = posts.map((post, index) => {\n  const author = post.author || {};\n  return `${index + 1}. ${post.title}\\nPost ID: ${post.id}\\nAuthor: ${author.name || 'Unknown'}\\nAuthor email: ${author.email || 'Not available'}\\n\\n${post.body}`;\n}).join('\\n\\n----------------------------------------\\n\\n');\n\nreturn [{ json: { subject: `Morning Brief - Long Titles (${posts.length})`, digest, itemCount: posts.length } }];"
+      },
+      "id": "f52bc7f8-ffbb-40e7-be90-978578f481e4",
+      "name": "Format Long-Title Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "rohansalunkhe991010@gmail.com",
+        "toEmail": "rohansalunkhe991010@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "3095fc48-1952-40b1-86b8-ae6b8971f185",
+      "name": "Send Long-Title Digest Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1664,
+        0
+      ],
+      "webhookId": "9abf3a6f-f00e-4d3f-9343-74f7e7d8b079",
+      "credentials": {
+        "smtp": {
+          "id": "acjAAgDyJoX3qsE8",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const posts = $input.all().map((item) => item.json);\nconst digest = posts.map((post, index) => {\n  const author = post.author || {};\n  return `${index + 1}. ${post.title}\\nPost ID: ${post.id}\\nAuthor: ${author.name || 'Unknown'}\\nAuthor email: ${author.email || 'Not available'}\\n\\n${post.body}`;\n}).join('\\n\\n----------------------------------------\\n\\n');\n\nreturn [{ json: { subject: `Morning Brief - Standard Titles (${posts.length})`, digest, itemCount: posts.length } }];"
+      },
+      "id": "cc812575-3c18-41d8-a126-d92e124c4e62",
+      "name": "Format Standard Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "rohansalunkhe991010@gmail.com",
+        "toEmail": "rohansalunkhe991010@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.digest }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b77df35b-900d-4827-89bb-38a456ecf54e",
+      "name": "Send Standard Digest Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1664,
+        240
+      ],
+      "webhookId": "f9292f38-f58c-40eb-a250-b75d3f9d7366",
+      "credentials": {
+        "smtp": {
+          "id": "acjAAgDyJoX3qsE8",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const errors = $input.all().map((item) => {\n  const data = item.json || {};\n  const detail = data.error?.message || data.error || data.message || data;\n  return typeof detail === 'string' ? detail : JSON.stringify(detail);\n});\n\nreturn [{\n  json: {\n    subject: 'ALERT: Morning Brief API request failed',\n    digest: `The Daily API Morning Brief workflow could not complete an API request.\\n\\nError details:\\n${errors.join('\\n\\n')}\\n\\nPlease open the n8n execution to inspect the failed request.`\n  }\n}];"
+      },
+      "id": "c0ff434f-ec72-4fd1-b9a4-f571ad996ed5",
+      "name": "Format API Error Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "rohansalunkhe991010@gmail.com",
+        "toEmail": "rohansalunkhe991010@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.digest }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "9fbe21a9-2678-44ec-b548-65e4712c1e97",
+      "name": "Send API Failure Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        944,
+        448
+      ],
+      "webhookId": "0d54edfa-c44d-427d-acdc-ba00bc541197",
+      "credentials": {
+        "smtp": {
+          "id": "acjAAgDyJoX3qsE8",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get All Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Posts": {
+      "main": [
+        [
+          {
+            "node": "Select Top 5 Posts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format API Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Top 5 Posts": {
+      "main": [
+        [
+          {
+            "node": "Get Author Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Author Details": {
+      "main": [
+        [
+          {
+            "node": "Combine Posts and Authors",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format API Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Posts and Authors": {
+      "main": [
+        [
+          {
+            "node": "IF - Title Longer Than 50 Characters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Title Longer Than 50 Characters": {
+      "main": [
+        [
+          {
+            "node": "Format Long-Title Digest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Standard Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Long-Title Digest": {
+      "main": [
+        [
+          {
+            "node": "Send Long-Title Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Standard Digest": {
+      "main": [
+        [
+          {
+            "node": "Send Standard Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format API Error Alert": {
+      "main": [
+        [
+          {
+            "node": "Send API Failure Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "291ce1d6-f6e6-4b39-ac7b-d64e3da2ed7c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "004e4c1452cf417ada75978155a630bc1858cc385a93fc3f1f03e8051fa8f2f3"
+  },
+  "nodeGroups": [],
+  "id": "cqDnq1ydPzXYG1uh",
+  "tags": []
+}
